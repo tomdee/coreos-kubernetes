@@ -100,6 +100,37 @@ WantedBy=multi-user.target
 EOF
     }
 
+
+    local TEMPLATE=/etc/systemd/system/calico-node.service
+    [ -f $TEMPLATE ] || {
+        echo "TEMPLATE: $TEMPLATE"
+        mkdir -p $(dirname $TEMPLATE)
+        cat << EOF > $TEMPLATE
+[Unit]
+Description=Calico per-host agent
+Requires=network-online.target
+After=network-online.target
+
+[Service]
+Slice=machine.slice
+Environment=CALICO_DISABLE_FILE_LOGGING=true
+Environment=HOSTNAME=${ADVERTISE_IP}
+Environment=IP=${ADVERTISE_IP}
+Environment=FELIX_FELIXHOSTNAME=${ADVERTISE_IP}
+Environment=CALICO_NETWORKING=false
+Environment=NO_DEFAULT_POOLS=true
+Environment=ETCD_ENDPOINTS=${ETCD_ENDPOINTS}
+ExecStart=/usr/bin/rkt run --inherit-env --volume=modules,kind=host,source=/lib/modules,readOnly=false --mount=volume=modules,target=/lib/modules --stage1-from-dir=stage1-fly.aci --insecure-options=image docker://quay.io/calico/node:v0.19.0
+KillMode=mixed
+Restart=always
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    }
+
+
     local TEMPLATE=/etc/kubernetes/manifests/kube-proxy.yaml
     [ -f $TEMPLATE ] || {
         echo "TEMPLATE: $TEMPLATE"
@@ -162,7 +193,7 @@ spec:
     - --tls-private-key-file=/etc/kubernetes/ssl/apiserver-key.pem
     - --client-ca-file=/etc/kubernetes/ssl/ca.pem
     - --service-account-key-file=/etc/kubernetes/ssl/apiserver-key.pem
-    - --runtime-config=extensions/v1beta1/deployments=true,extensions/v1beta1/daemonsets=true
+    - --runtime-config=extensions/v1beta1/deployments=true,extensions/v1beta1/daemonsets=true,extensions/v1beta1=true,extensions/v1beta1/thirdpartyresources=true
     ports:
     - containerPort: 443
       hostPort: 443
@@ -263,6 +294,29 @@ spec:
 EOF
     }
 
+    local TEMPLATE=/etc/kubernetes/manifests/calico-policy-agent.yaml
+    [ -f $TEMPLATE ] || {
+        echo "TEMPLATE: $TEMPLATE"
+        mkdir -p $(dirname $TEMPLATE)
+        cat << EOF > $TEMPLATE
+apiVersion: v1
+kind: Pod
+metadata:
+  name: calico-policy-agent
+  namespace: calico-system
+spec:
+  hostNetwork: true
+  containers:
+  - name: policyagent
+    image: quay.io/calico/k8s-policy-agent:v0.1.4
+    env:
+    - name: ETCD_ENDPOINTS
+      value: "${ETCD_ENDPOINTS}"
+    - name: K8S_API
+      value: "http://127.0.0.1:8080"
+EOF
+    }
+
     local TEMPLATE=/srv/kubernetes/manifests/kube-system.json
     [ -f $TEMPLATE ] || {
         echo "TEMPLATE: $TEMPLATE"
@@ -274,6 +328,42 @@ EOF
   "metadata": {
     "name": "kube-system"
   }
+}
+EOF
+    }
+
+    local TEMPLATE=/srv/kubernetes/manifests/calico-system.json
+    [ -f $TEMPLATE ] || {
+        echo "TEMPLATE: $TEMPLATE"
+        mkdir -p $(dirname $TEMPLATE)
+        cat << EOF > $TEMPLATE
+{
+  "apiVersion": "v1",
+  "kind": "Namespace",
+  "metadata": {
+    "name": "calico-system"
+  }
+}
+EOF
+    }
+
+    local TEMPLATE=/srv/kubernetes/manifests/network-policy.json
+    [ -f $TEMPLATE ] || {
+        echo "TEMPLATE: $TEMPLATE"
+        mkdir -p $(dirname $TEMPLATE)
+        cat << EOF > $TEMPLATE
+{
+  "kind": "ThirdPartyResource",
+  "apiVersion": "extensions/v1beta1",
+  "metadata": {
+    "name": "network-policy.net.alpha.kubernetes.io"
+  },
+  "description": "Specification for a network isolation policy",
+  "versions": [
+    {
+      "name": "v1alpha1"
+    }
+  ]
 }
 EOF
     }
@@ -643,18 +733,6 @@ EOF
 ExecStartPre=/usr/bin/ln -sf /etc/flannel/options.env /run/flannel/options.env
 EOF
     }
-
-    local TEMPLATE=/etc/systemd/system/docker.service.d/40-flannel.conf
-    [ -f $TEMPLATE ] || {
-        echo "TEMPLATE: $TEMPLATE"
-        mkdir -p $(dirname $TEMPLATE)
-        cat << EOF > $TEMPLATE
-[Unit]
-Requires=flanneld.service
-After=flanneld.service
-EOF
-    }
-
 }
 
 function start_addons {
@@ -672,6 +750,9 @@ function start_addons {
     echo "K8S: Heapster addon"
     curl --silent -H "Content-Type: application/json" -XPOST -d"$(cat /srv/kubernetes/manifests/heapster-dc.json)" "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/kube-system/deployments" > /dev/null
     curl --silent -H "Content-Type: application/json" -XPOST -d"$(cat /srv/kubernetes/manifests/heapster-svc.json)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
+    echo "K8S: Calico Policy"
+    curl --silent -H "Content-Type: application/json" -XPOST -d"$(cat /srv/kubernetes/manifests/calico-system.json)" "http://127.0.0.1:8080/api/v1/namespaces/" > /dev/null
+    curl --silent -H "Content-Type: application/json" -XPOST -d"$(cat /srv/kubernetes/manifests/network-policy.json)" "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/default/thirdpartyresources" >/dev/null
 }
 
 init_config
@@ -682,6 +763,9 @@ init_flannel
 systemctl stop update-engine; systemctl mask update-engine
 
 systemctl daemon-reload
+systemctl enable flanneld; systemctl start flanneld
 systemctl enable kubelet; systemctl start kubelet
+systemctl enable calico-node; systemctl start calico-node
+
 start_addons
 echo "DONE"

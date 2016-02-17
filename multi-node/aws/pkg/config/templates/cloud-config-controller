@@ -16,15 +16,9 @@ coreos:
     - name: etcd2.service
       command: start
 
-    - name: docker.service
-      drop-ins:
-        - name: 40-flannel.conf
-          content: |
-            [Unit]
-            Requires=flanneld.service
-            After=flanneld.service
-
     - name: flanneld.service
+      command: start
+      enable: true
       drop-ins:
         - name: 10-etcd.conf
           content: |
@@ -49,6 +43,32 @@ coreos:
         --cluster_domain=cluster.local
         Restart=always
         RestartSec=10
+
+        [Install]
+        WantedBy=multi-user.target
+
+    - name: calico-node.service
+      command: start
+      enable: true
+      content: |
+        [Unit]
+        Description=Calico per-host agent
+        Requires=network-online.target
+        After=network-online.target
+
+        [Service]
+        Slice=machine.slice
+        Environment=CALICO_DISABLE_FILE_LOGGING=true
+        Environment=HOSTNAME=$private_ipv4
+        Environment=IP=$private_ipv4
+        Environment=FELIX_FELIXHOSTNAME=$private_ipv4
+        Environment=CALICO_NETWORKING=false
+        Environment=NO_DEFAULT_POOLS=true
+        Environment=ETCD_ENDPOINTS={{ .ETCDEndpoints }}
+        ExecStart=/usr/bin/rkt run --inherit-env --volume=modules,kind=host,source=/lib/modules,readOnly=false --mount=volume=modules,target=/lib/modules --stage1-from-dir=stage1-fly.aci --insecure-options=image docker://quay.io/calico/node:v0.19.0
+        KillMode=mixed
+        Restart=always
+        TimeoutStartSec=0
 
         [Install]
         WantedBy=multi-user.target
@@ -91,6 +111,7 @@ write_files:
     content: |
       #!/bin/bash -e
       /usr/bin/curl -H "Content-Type: application/json" -XPOST -d @"/srv/kubernetes/manifests/kube-system.json" "http://127.0.0.1:8080/api/v1/namespaces"
+      /usr/bin/curl -H "Content-Type: application/json" -XPOST -d @"/srv/kubernetes/manifests/calico-system.json" "http://127.0.0.1:8080/api/v1/namespaces"
 
       /usr/bin/curl  -H "Content-Type: application/json" -XPOST \
       -d @"/srv/kubernetes/manifests/kube-dns-rc.json" \
@@ -99,6 +120,14 @@ write_files:
       /usr/bin/curl  -H "Content-Type: application/json" -XPOST \
       -d @"/srv/kubernetes/manifests/heapster-dc.json" \
       "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/kube-system/deployments"
+
+      /usr/bin/curl  -H "Content-Type: application/json" -XPOST \
+      -d @"/srv/kubernetes/manifests/calico-policy-agent.json" \
+      "http://127.0.0.1:8080/api/v1/namespaces/kube-system/replicationcontrollers"
+
+      /usr/bin/curl -H "Content-Type: application/json" -XPOST \
+      -d @"/srv/kubernetes/manifests/network-policy.json" \
+      "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/default/thirdpartyresources"
 
       for manifest in {kube-dns,heapster}-svc.json;do
           /usr/bin/curl  -H "Content-Type: application/json" -XPOST \
@@ -117,7 +146,6 @@ write_files:
         docker run --rm -v /etc/kubernetes/ssl:/etc/kubernetes/ssl --rm quay.io/coreos/awscli aws --region {{.Region}} kms decrypt --ciphertext-blob fileb://$encKey --output text --query Plaintext | base64 --decode > $tmpPath
         mv  $tmpPath $encKey
       done
-
 
   - path: /etc/kubernetes/manifests/kube-proxy.yaml
     content: |
@@ -173,7 +201,7 @@ write_files:
           - --tls-private-key-file=/etc/kubernetes/ssl/apiserver-key.pem
           - --client-ca-file=/etc/kubernetes/ssl/ca.pem
           - --service-account-key-file=/etc/kubernetes/ssl/apiserver-key.pem
-          - --runtime-config=extensions/v1beta1/deployments=true,extensions/v1beta1/daemonsets=true
+          - --runtime-config=extensions/v1beta1/deployments=true,extensions/v1beta1/daemonsets=true,extensions/v1beta1=true,extensions/v1beta1/thirdpartyresources=true
           - --cloud-provider=aws
           ports:
           - containerPort: 443
@@ -264,6 +292,24 @@ write_files:
             initialDelaySeconds: 15
             timeoutSeconds: 1
 
+  - path: /etc/kubernetes/manifests/calico-policy-agent.yaml
+    content: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: calico-policy-agent
+        namespace: calico-system
+      spec:
+        hostNetwork: true
+        containers:
+        - name: policyagent
+          image: quay.io/calico/k8s-policy-agent:v0.1.4
+          env:
+          - name: ETCD_ENDPOINTS
+            value: "{{ .ETCDEndpoints }}"
+          - name: K8S_API
+            value: "http://127.0.0.1:8080"
+
   - path: /srv/kubernetes/manifests/kube-system.json
     content: |
         {
@@ -272,6 +318,32 @@ write_files:
           "metadata": {
             "name": "kube-system"
           }
+        }
+
+  - path: /srv/kubernetes/manifests/calico-system.json
+    content: |
+        {
+          "apiVersion": "v1",
+          "kind": "Namespace",
+          "metadata": {
+            "name": "calico-system"
+          }
+        }
+
+  - path: /srv/kubernetes/manifests/network-policy.json
+    content: |
+        {
+          "kind": "ThirdPartyResource",
+          "apiVersion": "extensions/v1beta1",
+          "metadata": {
+            "name": "network-policy.net.alpha.kubernetes.io"
+          },
+          "description": "Specification for a network isolation policy",
+          "versions": [
+            {
+              "name": "v1alpha1"
+            }
+          ]
         }
 
   - path: /srv/kubernetes/manifests/kube-dns-rc.json

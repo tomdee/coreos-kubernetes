@@ -47,11 +47,21 @@ function init_templates {
         mkdir -p $(dirname $TEMPLATE)
         cat << EOF > $TEMPLATE
 [Service]
-ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests
-
 Environment=KUBELET_VERSION=${K8S_VER}
+Environment="RKT_OPTS=--volume cni,kind=host,source=/opt/cni/bin --mount volume=cni,target=/opt/cni/bin"
+ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests
+ExecStartPre=/usr/bin/mkdir -p /opt/cni/bin
+ExecStartPre=/usr/bin/chmod a+w /opt/cni/bin
+ExecStartPre=-/usr/bin/wget -nc -O /opt/cni/bin/calico https://github.com/projectcalico/calico-cni/releases/download/v1.3.0/calico
+ExecStartPre=-/usr/bin/wget -nc -O /opt/cni/bin/flannel https://f001.backblaze.com/file/calico/flannel
+ExecStartPre=-/usr/bin/wget -nc -O /opt/cni/bin/host-local https://f001.backblaze.com/file/calico/host-local
+ExecStartPre=/usr/bin/chmod +x /opt/cni/bin/calico
+ExecStartPre=/usr/bin/chmod +x /opt/cni/bin/flannel
+ExecStartPre=/usr/bin/chmod +x /opt/cni/bin/host-local
 ExecStart=/usr/lib/coreos/kubelet-wrapper \
   --api-servers=${CONTROLLER_ENDPOINT} \
+  --network-plugin-dir=/etc/kubernetes/cni/net.d \
+  --network-plugin=cni \
   --register-node=true \
   --allow-privileged=true \
   --config=/etc/kubernetes/manifests \
@@ -63,6 +73,35 @@ ExecStart=/usr/lib/coreos/kubelet-wrapper \
   --tls-private-key-file=/etc/kubernetes/ssl/worker-key.pem
 Restart=always
 RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    }
+
+    local TEMPLATE=/etc/systemd/system/calico-node.service
+    [ -f $TEMPLATE ] || {
+        echo "TEMPLATE: $TEMPLATE"
+        mkdir -p $(dirname $TEMPLATE)
+        cat << EOF > $TEMPLATE
+[Unit]
+Description=Calico per-host agent
+Requires=network-online.target
+After=network-online.target
+
+[Service]
+Slice=machine.slice
+Environment=CALICO_DISABLE_FILE_LOGGING=true
+Environment=HOSTNAME=${ADVERTISE_IP}
+Environment=IP=${ADVERTISE_IP}
+Environment=FELIX_FELIXHOSTNAME=${ADVERTISE_IP}
+Environment=CALICO_NETWORKING=false
+Environment=NO_DEFAULT_POOLS=true
+Environment=ETCD_ENDPOINTS=${ETCD_ENDPOINTS}
+ExecStart=/usr/bin/rkt run --inherit-env --volume=modules,kind=host,source=/lib/modules,readOnly=false --mount=volume=modules,target=/lib/modules --stage1-from-dir=stage1-fly.aci --insecure-options=image docker://quay.io/calico/node:v0.19.0
+KillMode=mixed
+Restart=always
+TimeoutStartSec=0
 
 [Install]
 WantedBy=multi-user.target
@@ -159,14 +198,28 @@ ExecStartPre=/usr/bin/ln -sf /etc/flannel/options.env /run/flannel/options.env
 EOF
     }
 
-    local TEMPLATE=/etc/systemd/system/docker.service.d/40-flannel.conf
+    local TEMPLATE=/etc/kubernetes/cni/net.d/10-calico.conf
     [ -f $TEMPLATE ] || {
         echo "TEMPLATE: $TEMPLATE"
         mkdir -p $(dirname $TEMPLATE)
         cat << EOF > $TEMPLATE
-[Unit]
-Requires=flanneld.service
-After=flanneld.service
+{
+    "name": "calico",
+    "type": "flannel",
+    "delegate": {
+        "type": "calico",
+        "etcd_endpoints": "$ETCD_ENDPOINTS",
+        "log_level": "none",
+        "log_level_stderr": "info",
+        "hostname": "${ADVERTISE_IP}",
+        "policy": {
+            "type": "k8s",
+            "k8s_api_root": "${CONTROLLER_ENDPOINT}:443/api/v1/",
+            "k8s_client_key": "/etc/kubernetes/ssl/worker-key.pem",
+            "k8s_client_certificate": "/etc/kubernetes/ssl/worker.pem"
+        }
+    }
+}
 EOF
     }
 
@@ -178,5 +231,7 @@ init_templates
 systemctl stop update-engine; systemctl mask update-engine
 
 systemctl daemon-reload
+systemctl enable flanneld; systemctl start flanneld
 systemctl enable kubelet; systemctl start kubelet
+systemctl enable calico-node; systemctl start calico-node
 
