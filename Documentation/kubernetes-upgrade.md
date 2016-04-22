@@ -29,7 +29,10 @@ To update the image version, change the image tag in the service file (`/etc/sys
 
 **/etc/systemd/system/calico-node.service**
 ```
-ExecStart=/usr/bin/rkt run --inherit-env --volume=modules,kind=host,source=/lib/modules,readOnly=false --mount=volume=modules,target=/lib/modules --stage1-from-dir=stage1-fly.aci --insecure-options=image docker://quay.io/calico/node:v0.19.0
+ExecStart=/usr/bin/rkt run --inherit-env --stage1-from-dir=stage1-fly.aci \
+--volume=modules,kind=host,source=/lib/modules,readOnly=false \
+--mount=volume=modules,target=/lib/modules \
+quay.io/calico/node:v0.19.0
 ```
 
 ## Upgrading Master Nodes
