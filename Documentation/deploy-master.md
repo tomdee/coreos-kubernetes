@@ -36,7 +36,7 @@ $ sudo chown root:root /etc/kubernetes/ssl/*-key.pem
 ### Network Configuration
 Networking is provided by Flannel and Calico.
 * [flannel][flannel-docs] provides a software-defined overlay network for routing traffic to/from the [pods][pod-overview]
-* [Calico][calico-docs] secures the overlay network by restricting traffic to/from the [Pod]s based on fine-grained [network policy][network-policy]
+* [Calico][calico-docs] secures the overlay network by restricting traffic to/from the [Pod]s based on fine-grained network policy.
 
 *Note:* If the pod-network is being managed independently of flannel, then the flannel parts of this guide can be skipped. It's recommended that Calico is still used for providing network policy. See [kubernetes networking](kubernetes-networking.md) for more detail.
 
@@ -61,7 +61,6 @@ ExecStartPre=/usr/bin/ln -sf /etc/flannel/options.env /run/flannel/options.env
 ```
 
 [calico-docs]: https://github.com/projectcalico/calico-containers/tree/master/docs/cni/kubernetes
-[network-policy]: https://github.com/caseydavenport/kubernetes/blob/network-policy/docs/admin/network-policy.md#network-policy-in-kubernetes
 [flannel-docs]: https://coreos.com/flannel/docs/latest/
 [pod-overview]: https://coreos.com/kubernetes/docs/latest/pods.html
 [service-overview]: https://coreos.com/kubernetes/docs/latest/services.html
