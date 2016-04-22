@@ -126,7 +126,7 @@ write_files:
 
       /usr/bin/curl  -H "Content-Type: application/json" -XPOST \
       -d @"/srv/kubernetes/manifests/calico-policy-agent.json" \
-      "http://127.0.0.1:8080/api/v1/namespaces/kube-system/replicationcontrollers"
+      "http://127.0.0.1:8080/api/v1/namespaces/calico-system/pods"
 
       /usr/bin/curl -H "Content-Type: application/json" -XPOST \
       -d @"/srv/kubernetes/manifests/network-policy.json" \
@@ -295,7 +295,7 @@ write_files:
             initialDelaySeconds: 15
             timeoutSeconds: 1
 
-  - path: /etc/kubernetes/manifests/calico-policy-agent.yaml
+  - path: /srv/kubernetes/manifests/calico-policy-agent.yaml
     content: |
       apiVersion: v1
       kind: Pod
