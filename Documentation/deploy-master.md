@@ -329,29 +329,43 @@ WantedBy=multi-user.target
 
 The policy agent is the last major piece of the our master node. It monitors the API for changes related to network policy and configures Calico to implement that policy.
 
-When creating `/srv/kubernetes/manifests/policy-agent.yaml`:
+When creating `/etc/kubernetes/manifests/policy-agent.yaml`:
 
 * Replace `${ETCD_ENDPOINTS}`
 
-**/srv/kubernetes/manifests/policy-agent.yaml**
+**/etc/kubernetes/manifests/policy-agent.yaml**
 
 ```yaml
 apiVersion: v1
-kind: Pod
+kind: Pod 
 metadata:
   name: calico-policy-agent
-  namespace: calico-system
+  namespace: calico-system 
 spec:
   hostNetwork: true
   containers:
-  - name: policyagent
-    image: quay.io/calico/k8s-policy-agent:v0.1.4
-    env:
-    - name: ETCD_ENDPOINTS
-      value: "${ETCD_ENDPOINTS}"
-    - name: K8S_API
-      value: "http://127.0.0.1:8080"
+    # The Calico policy agent.
+    - name: k8s-policy-agent
+      image: calico/k8s-policy-agent:v0.1.4
+      env:
+        - name: ETCD_ENDPOINTS
+          value: "${ETCD_ENDPOINTS}"
+        - name: K8S_API
+          value: "http://127.0.0.1:8080"
+        - name: LEADER_ELECTION 
+          value: "true"
+    # Leader election container used by the policy agent.
+    - name: leader-elector
+      image: gcr.io/google_containers/leader-elector:0.4
+      imagePullPolicy: IfNotPresent
+      args:
+        - "--election=calico-policy-election"
+        - "--http=127.0.0.1:4040"
+      ports:
+        - containerPort: 4040
+          protocol: TCP
 ```
+
 
 ## Start Services
 
