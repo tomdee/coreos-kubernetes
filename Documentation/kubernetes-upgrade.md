@@ -32,7 +32,7 @@ To update the image version, change the image tag in the service file (`/etc/sys
 ExecStart=/usr/bin/rkt run --inherit-env --stage1-from-dir=stage1-fly.aci \
 --volume=modules,kind=host,source=/lib/modules,readOnly=false \
 --mount=volume=modules,target=/lib/modules \
-quay.io/calico/node:v0.19.0
+--trust-keys-from-https quay.io/calico/node:v0.19.0
 ```
 
 ## Upgrading Master Nodes
