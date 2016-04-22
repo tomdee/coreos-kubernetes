@@ -59,7 +59,7 @@ ExecStartPre=/usr/bin/ln -sf /etc/flannel/options.env /run/flannel/options.env
 
 ### Create the kubelet Unit
 
-The kubelet on the workers is configured to use CNI for networking. This makes the Calico agent aware of each pod that is created and allows it to network the pods into the flannel overlay. The Calico CNI plugin is actually called by the Flannel CNI plugin so that the correct IP range that flannel has selected for the host can be used.
+The kubelet on the workers is configured to use CNI for networking. This makes Calico aware of each pod that is created and allows it to network the pods into the flannel overlay. The Calico CNI plugin is actually called by the Flannel CNI plugin so that the correct IP range that flannel has selected for the host can be used.
 
 Create `/etc/systemd/system/kubelet.service` and substitute the following variables:
 
@@ -208,9 +208,9 @@ contexts:
 current-context: kubelet-context
 ```
 
-### Set Up Calico Agent
+### Set Up Calico Node Container
 
-The Calico agent runs on each worker node and performs two functions
+The Calico node container runs on each worker node and performs two functions
 * It networks containers created through CNI to connect them to the flannel overlay network.
 * It enforces network policy created through the Kubernetes policy API.
 
@@ -223,7 +223,7 @@ Create `/etc/systemd/system/calico-node.service` and substitute the following va
 
 ```yaml
 [Unit]
-Description=Calico per-host agent
+Description=Calico node for network policy
 Requires=network-online.target
 After=network-online.target
 
@@ -278,8 +278,8 @@ $ sudo systemctl enable flanneld
 Created symlink from /etc/systemd/system/multi-user.target.wants/flanneld.service to /etc/systemd/system/flanneld.service.
 $ sudo systemctl enable kubelet
 Created symlink from /etc/systemd/system/multi-user.target.wants/kubelet.service to /etc/systemd/system/kubelet.service.
-$ sudo systemctl enable calico-agent
-Created symlink from /etc/systemd/system/multi-user.target.wants/calico-agent.service to /etc/systemd/system/calico-agent.service.
+$ sudo systemctl enable calico-node
+Created symlink from /etc/systemd/system/multi-user.target.wants/calico-node.service to /etc/systemd/system/calico-node.service.
 
 ```
 
