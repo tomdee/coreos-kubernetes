@@ -81,12 +81,22 @@ function init_templates {
         mkdir -p $(dirname $TEMPLATE)
         cat << EOF > $TEMPLATE
 [Service]
-ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests
-
 Environment=KUBELET_VERSION=${K8S_VER}
+Environment="RKT_OPTS=--volume cni,kind=host,source=/opt/cni/bin --mount volume=cni,target=/opt/cni/bin"
+ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests
+ExecStartPre=/usr/bin/mkdir -p /opt/cni/bin
+ExecStartPre=/usr/bin/chmod a+w /opt/cni/bin
+ExecStartPre=-/usr/bin/wget -nc -O /opt/cni/bin/calico https://github.com/projectcalico/calico-cni/releases/download/v1.3.0/calico
+ExecStartPre=-/usr/bin/wget -nc -O /opt/cni/bin/flannel https://f001.backblaze.com/file/calico/flannel
+ExecStartPre=-/usr/bin/wget -nc -O /opt/cni/bin/host-local https://f001.backblaze.com/file/calico/host-local
+ExecStartPre=/usr/bin/chmod +x /opt/cni/bin/calico
+ExecStartPre=/usr/bin/chmod +x /opt/cni/bin/flannel
+ExecStartPre=/usr/bin/chmod +x /opt/cni/bin/host-local
 ExecStart=/usr/lib/coreos/kubelet-wrapper \
   --api-servers=http://127.0.0.1:8080 \
   --register-schedulable=false \
+  --network-plugin-dir=/etc/kubernetes/cni/net.d \
+  --network-plugin=cni \
   --allow-privileged=true \
   --config=/etc/kubernetes/manifests \
   --hostname-override=${ADVERTISE_IP} \
@@ -749,6 +759,30 @@ EOF
 ExecStartPre=/usr/bin/ln -sf /etc/flannel/options.env /run/flannel/options.env
 EOF
     }
+
+    local TEMPLATE=/etc/kubernetes/cni/net.d/10-calico.conf
+    [ -f $TEMPLATE ] || {
+        echo "TEMPLATE: $TEMPLATE"
+        mkdir -p $(dirname $TEMPLATE)
+        cat << EOF > $TEMPLATE
+{
+    "name": "calico",
+    "type": "flannel",
+    "delegate": {
+        "type": "calico",
+        "etcd_endpoints": "$ETCD_ENDPOINTS",
+        "log_level": "none",
+        "log_level_stderr": "info",
+        "hostname": "${ADVERTISE_IP}",
+        "policy": {
+            "type": "k8s",
+            "k8s_api_root": "http://127.0.0.1:8080/api/v1/"
+        }
+    }
+}
+EOF
+    }
+
 }
 
 function start_addons {

@@ -5,6 +5,7 @@ coreos:
   flannel:
     interface: $private_ipv4
     etcd_endpoints: {{ .ETCDEndpoints }}
+
   units:
     - name: flanneld.service
       command: start
