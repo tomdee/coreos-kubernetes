@@ -5,7 +5,10 @@ set -e
 export ETCD_ENDPOINTS="http://127.0.0.1:2379"
 
 # Specify the version (vX.Y.Z) of Kubernetes assets to deploy
-export K8S_VER=v1.2.2_coreos.0
+export K8S_VER=v1.2.3_coreos.0-cni
+
+# Hyperkube image repository to use.
+export HYPERKUBE_IMAGE_REPO=quay.io/calico/hyperkube
 
 # The CIDR network to use for pod IPs.
 # Each pod launched in the cluster will be assigned an IP out of this range.
@@ -75,6 +78,7 @@ function init_templates {
         cat << EOF > $TEMPLATE
 [Service]
 Environment=KUBELET_VERSION=${K8S_VER}
+Environment=KUBELET_ACI=${HYPERKUBE_IMAGE_REPO}
 ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests
 ExecStart=/usr/lib/coreos/kubelet-wrapper \
   --api-servers=http://127.0.0.1:8080 \

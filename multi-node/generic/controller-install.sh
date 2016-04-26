@@ -5,7 +5,10 @@ set -e
 export ETCD_ENDPOINTS=
 
 # Specify the version (vX.Y.Z) of Kubernetes assets to deploy
-export K8S_VER=v1.2.2_coreos.0
+export K8S_VER=v1.2.3_coreos.0-cni
+
+# Hyperkube image repository to use.
+export HYPERKUBE_IMAGE_REPO=quay.io/calico/hyperkube
 
 # The CIDR network to use for pod IPs.
 # Each pod launched in the cluster will be assigned an IP out of this range.
@@ -82,16 +85,8 @@ function init_templates {
         cat << EOF > $TEMPLATE
 [Service]
 Environment=KUBELET_VERSION=${K8S_VER}
-Environment="RKT_OPTS=--volume cni,kind=host,source=/opt/cni/bin --mount volume=cni,target=/opt/cni/bin"
+Environment=KUBELET_ACI=${HYPERKUBE_IMAGE_REPO}
 ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests
-ExecStartPre=/usr/bin/mkdir -p /opt/cni/bin
-ExecStartPre=/usr/bin/chmod a+w /opt/cni/bin
-ExecStartPre=-/usr/bin/wget -nc -O /opt/cni/bin/calico https://github.com/projectcalico/calico-cni/releases/download/v1.3.0/calico
-ExecStartPre=-/usr/bin/wget -nc -O /opt/cni/bin/flannel https://f001.backblaze.com/file/calico/flannel
-ExecStartPre=-/usr/bin/wget -nc -O /opt/cni/bin/host-local https://f001.backblaze.com/file/calico/host-local
-ExecStartPre=/usr/bin/chmod +x /opt/cni/bin/calico
-ExecStartPre=/usr/bin/chmod +x /opt/cni/bin/flannel
-ExecStartPre=/usr/bin/chmod +x /opt/cni/bin/host-local
 ExecStart=/usr/lib/coreos/kubelet-wrapper \
   --api-servers=http://127.0.0.1:8080 \
   --register-schedulable=false \

@@ -10,7 +10,10 @@ export ETCD_ENDPOINTS=
 export CONTROLLER_ENDPOINT=
 
 # Specify the version (vX.Y.Z) of Kubernetes assets to deploy
-export K8S_VER=v1.2.2_coreos.0
+export K8S_VER=v1.2.3_coreos.0-cni
+
+# Hyperkube image repository to use.
+export HYPERKUBE_IMAGE_REPO=quay.io/calico/hyperkube
 
 # The IP address of the cluster DNS service.
 # This must be the same DNS_SERVICE_IP used when configuring the controller nodes.
@@ -48,6 +51,7 @@ function init_templates {
         cat << EOF > $TEMPLATE
 [Service]
 Environment=KUBELET_VERSION=${K8S_VER}
+Environment=KUBELET_ACI=${HYPERKUBE_IMAGE_REPO}
 ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests
 ExecStart=/usr/lib/coreos/kubelet-wrapper \
   --api-servers=${CONTROLLER_ENDPOINT} \
