@@ -30,13 +30,16 @@ export K8S_SERVICE_IP=10.3.0.1
 # This same IP must be configured on all worker nodes to enable DNS service discovery.
 export DNS_SERVICE_IP=10.3.0.10
 
+# Whether to use Calico for Kubernetes network policy.
+export USE_CALICO=true
+
 # The above settings can optionally be overridden using an environment file:
 ENV_FILE=/run/coreos-kubernetes/options.env
 
 # -------------
 
 function init_config {
-    local REQUIRED=('ADVERTISE_IP' 'POD_NETWORK' 'ETCD_ENDPOINTS' 'SERVICE_IP_RANGE' 'K8S_SERVICE_IP' 'DNS_SERVICE_IP' 'K8S_VER' )
+    local REQUIRED=('ADVERTISE_IP' 'POD_NETWORK' 'ETCD_ENDPOINTS' 'SERVICE_IP_RANGE' 'K8S_SERVICE_IP' 'DNS_SERVICE_IP' 'K8S_VER' 'HYPERKUBE_IMAGE_REPO' 'USE_CALICO')
 
     if [ -f $ENV_FILE ]; then
         export $(cat $ENV_FILE | xargs)
@@ -153,7 +156,7 @@ spec:
   hostNetwork: true
   containers:
   - name: kube-proxy
-    image: quay.io/coreos/hyperkube:$K8S_VER
+    image: ${HYPERKUBE_IMAGE_REPO}:$K8S_VER
     command:
     - /hyperkube
     - proxy
@@ -186,7 +189,7 @@ spec:
   hostNetwork: true
   containers:
   - name: kube-apiserver
-    image: quay.io/coreos/hyperkube:$K8S_VER
+    image: ${HYPERKUBE_IMAGE_REPO}:$K8S_VER
     command:
     - /hyperkube
     - apiserver
@@ -239,7 +242,7 @@ metadata:
 spec:
   containers:
   - name: kube-controller-manager
-    image: quay.io/coreos/hyperkube:$K8S_VER
+    image: ${HYPERKUBE_IMAGE_REPO}:$K8S_VER
     command:
     - /hyperkube
     - controller-manager
@@ -286,7 +289,7 @@ spec:
   hostNetwork: true
   containers:
   - name: kube-scheduler
-    image: quay.io/coreos/hyperkube:$K8S_VER
+    image: ${HYPERKUBE_IMAGE_REPO}:$K8S_VER
     command:
     - /hyperkube
     - scheduler

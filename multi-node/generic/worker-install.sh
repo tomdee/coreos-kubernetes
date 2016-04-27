@@ -19,13 +19,16 @@ export HYPERKUBE_IMAGE_REPO=quay.io/calico/hyperkube
 # This must be the same DNS_SERVICE_IP used when configuring the controller nodes.
 export DNS_SERVICE_IP=10.3.0.10
 
+# Whether to use Calico for Kubernetes network policy.
+export USE_CALICO=true
+
 # The above settings can optionally be overridden using an environment file:
 ENV_FILE=/run/coreos-kubernetes/options.env
 
 # -------------
 
 function init_config {
-    local REQUIRED=( 'ADVERTISE_IP' 'ETCD_ENDPOINTS' 'CONTROLLER_ENDPOINT' 'DNS_SERVICE_IP' 'K8S_VER' )
+    local REQUIRED=( 'ADVERTISE_IP' 'ETCD_ENDPOINTS' 'CONTROLLER_ENDPOINT' 'DNS_SERVICE_IP' 'K8S_VER' 'HYPERKUBE_IMAGE_REPO' 'USE_CALICO' )
 
     if [ -f $ENV_FILE ]; then
         export $(cat $ENV_FILE | xargs)
@@ -145,7 +148,7 @@ spec:
   hostNetwork: true
   containers:
   - name: kube-proxy
-    image: quay.io/coreos/hyperkube:$K8S_VER
+    image: ${HYPERKUBE_IMAGE_REPO}:$K8S_VER
     command:
     - /hyperkube
     - proxy
