@@ -5,11 +5,15 @@ coreos:
   flannel:
     interface: $private_ipv4
     etcd_endpoints: {{ .ETCDEndpoints }}
-
   units:
-    - name: flanneld.service
-      command: start
-      enable: true
+    - name: docker.service
+      drop-ins:
+        - name: 40-flannel.conf
+          content: |
+            [Unit]
+            Requires=flanneld.service
+            After=flanneld.service
+
     - name: kubelet.service
       enable: true
       command: start
@@ -21,7 +25,7 @@ coreos:
         [Service]
         Environment=KUBELET_VERSION={{.K8sVer}}
         Environment=KUBELET_ACI={{.HyperkubeImageRepo}}
-        ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests
+        Environment="RKT_OPTS=--volume dns,kind=host,source=/etc/resolv.conf --mount volume=dns,target=/etc/resolv.conf"
         ExecStart=/usr/lib/coreos/kubelet-wrapper \
         --api-servers={{.SecureAPIServers}} \
         --network-plugin-dir=/etc/kubernetes/cni/net.d \
