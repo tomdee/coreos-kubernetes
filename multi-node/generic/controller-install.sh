@@ -55,6 +55,12 @@ function init_config {
             exit 1
         fi
     done
+
+    if [ $USE_CALICO = "true" ]; then
+        export K8S_NETWORK_PLUGIN="cni"
+    else
+        export K8S_NETWORK_PLUGIN=""
+    fi
 }
 
 function init_flannel {
@@ -94,7 +100,7 @@ ExecStart=/usr/lib/coreos/kubelet-wrapper \
   --api-servers=http://127.0.0.1:8080 \
   --register-schedulable=false \
   --network-plugin-dir=/etc/kubernetes/cni/net.d \
-  --network-plugin=cni \
+  --network-plugin=${K8S_NETWORK_PLUGIN} \
   --allow-privileged=true \
   --config=/etc/kubernetes/manifests \
   --hostname-override=${ADVERTISE_IP} \
@@ -305,7 +311,7 @@ spec:
 EOF
     }
 
-    local TEMPLATE=/etc/kubernetes/manifests/calico-policy-agent.yaml
+    local TEMPLATE=/srv/kubernetes/manifests/calico-policy-agent.yaml
     [ -f $TEMPLATE ] || {
         echo "TEMPLATE: $TEMPLATE"
         mkdir -p $(dirname $TEMPLATE)
@@ -798,9 +804,19 @@ function start_addons {
     echo "K8S: Heapster addon"
     curl --silent -H "Content-Type: application/json" -XPOST -d"$(cat /srv/kubernetes/manifests/heapster-dc.json)" "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/kube-system/deployments" > /dev/null
     curl --silent -H "Content-Type: application/json" -XPOST -d"$(cat /srv/kubernetes/manifests/heapster-svc.json)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
+}
+
+function enable_calico_policy {
+    echo "Waiting for Kubernetes API..."
+    until curl --silent "http://127.0.0.1:8080/version"
+    do
+        sleep 5
+    done
+    echo
     echo "K8S: Calico Policy"
     curl --silent -H "Content-Type: application/json" -XPOST -d"$(cat /srv/kubernetes/manifests/calico-system.json)" "http://127.0.0.1:8080/api/v1/namespaces/" > /dev/null
     curl --silent -H "Content-Type: application/json" -XPOST -d"$(cat /srv/kubernetes/manifests/network-policy.json)" "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/default/thirdpartyresources" >/dev/null
+    cp /srv/kubernetes/manifests/calico-policy-agent.yaml /etc/kubernetes/manifests
 }
 
 init_config
@@ -813,7 +829,10 @@ systemctl stop update-engine; systemctl mask update-engine
 systemctl daemon-reload
 systemctl enable flanneld; systemctl start flanneld
 systemctl enable kubelet; systemctl start kubelet
-systemctl enable calico-node; systemctl start calico-node
+if [ $USE_CALICO = "true" ]; then
+        systemctl enable calico-node; systemctl start calico-node
+        enable_calico_policy
+fi
 
 start_addons
 echo "DONE"

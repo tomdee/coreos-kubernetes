@@ -44,6 +44,13 @@ function init_config {
             exit 1
         fi
     done
+    if
+
+    if [ $USE_CALICO = "true" ]; then
+        export K8S_NETWORK_PLUGIN="cni"
+    else
+        export K8S_NETWORK_PLUGIN=""
+    fi
 }
 
 function init_templates {
@@ -59,7 +66,7 @@ ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests
 ExecStart=/usr/lib/coreos/kubelet-wrapper \
   --api-servers=${CONTROLLER_ENDPOINT} \
   --network-plugin-dir=/etc/kubernetes/cni/net.d \
-  --network-plugin=cni \
+  --network-plugin=${K8S_NETWORK_PLUGIN} \
   --register-node=true \
   --allow-privileged=true \
   --config=/etc/kubernetes/manifests \
@@ -234,5 +241,8 @@ systemctl stop update-engine; systemctl mask update-engine
 systemctl daemon-reload
 systemctl enable flanneld; systemctl start flanneld
 systemctl enable kubelet; systemctl start kubelet
-systemctl enable calico-node; systemctl start calico-node
+if [ $USE_CALICO = "true" ]; then
+        systemctl enable calico-node; systemctl start calico-node
+fi
+
 
