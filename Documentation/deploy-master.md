@@ -38,7 +38,7 @@ Networking is provided by Flannel and Calico.
 * [flannel][flannel-docs] provides a software-defined overlay network for routing traffic to/from the [pods][pod-overview]
 * [Calico][calico-docs] secures the overlay network by restricting traffic to/from the [Pod]s based on fine-grained network policy.
 
-*Note:* If the pod-network is being managed independently of flannel, then the flannel parts of this guide can be skipped. It's recommended that Calico is still used for providing network policy. See [kubernetes networking](kubernetes-networking.md) for more detail.
+*Note:* If the pod-network is being managed independently of flannel, then the flannel parts of this guide can be skipped. In this case, Calico may still be used for providing network policy. See [Kubernetes networking](kubernetes-networking.md) for more detail.
 
 We will configure flannel to source its local configuration in `/etc/flannel/options.env` and cluster-level configuration in etcd. Create this file and edit the contents:
 
@@ -287,7 +287,7 @@ spec:
 ```
 
 ### Run the per host calico agent
-The per host Calico agent runs on all hosts including the master node. It is responsible for enforcing networking policy and connecting the pods on that host to the flannel overlay network.
+The Calico agent runs on all hosts, including the master node. It is responsible for enforcing networking policy and connecting the pods on each host to the flannel overlay network.
 
 When creating `/etc/systemd/system/calico-node.service`:
 
@@ -326,11 +326,11 @@ WantedBy=multi-user.target
 
 ### Set Up the policy-agent Pod
 
-The policy agent is the last major piece of the our master node. It monitors the API for changes related to network policy and configures Calico to implement that policy.
+The policy agent is the last major piece of the master node. It monitors the API for changes related to network policy and configures Calico to implement that policy.
 
 When creating `/etc/kubernetes/manifests/policy-agent.yaml`:
 
-* Replace `${ETCD_ENDPOINTS}`
+* Replace `${ETCD_ENDPOINTS}` with the same endpoints used in calico-node.service, above.
 
 **/etc/kubernetes/manifests/policy-agent.yaml**
 
@@ -449,7 +449,7 @@ Now we can create the `kube-system` namespace:
 $ curl -H "Content-Type: application/json" -XPOST -d'{"apiVersion":"v1","kind":"Namespace","metadata":{"name":"kube-system"}}' "http://127.0.0.1:8080/api/v1/namespaces"
 ```
 
-The Calico policy-agent runs in it's own `calico-system` namespace:
+The Calico policy-agent runs in its own `calico-system` namespace:
 
 ```sh
 $ curl -H "Content-Type: application/json" -XPOST -d'{"apiVersion":"v1","kind":"Namespace","metadata":{"name":"calico-system"}}' "http://127.0.0.1:8080/api/v1/namespaces"
