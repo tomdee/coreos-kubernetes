@@ -29,7 +29,7 @@ coreos:
         ExecStart=/usr/lib/coreos/kubelet-wrapper \
         --api-servers={{.SecureAPIServers}} \
         --network-plugin-dir=/etc/kubernetes/cni/net.d \
-        --network-plugin=cni \
+        --network-plugin={{.K8sNetworkPlugin}} \
         --register-node=true \
         --allow-privileged=true \
         --config=/etc/kubernetes/manifests \
@@ -46,7 +46,7 @@ coreos:
 
     - name: calico-node.service
       command: start
-      enable: true
+      enable: {{.CalicoEnable}}
       content: |
         [Unit]
         Description=Calico per-host agent

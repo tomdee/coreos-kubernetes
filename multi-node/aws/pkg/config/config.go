@@ -24,7 +24,7 @@ import (
 
 const (
 	credentialsDir = "credentials"
-	userDataDir    = "userdata"
+	userDataDir = "userdata"
 )
 
 func newDefaultCluster() *Cluster {
@@ -108,6 +108,7 @@ type Cluster struct {
 	RecordSetTTL             int               `yaml:"recordSetTTL"`
 	HostedZone               string            `yaml:"hostedZone"`
 	StackTags                map[string]string `yaml:"stackTags"`
+	UseCalico                bool              `yaml:"useCalico"`
 }
 
 const (
@@ -126,6 +127,16 @@ func (c Cluster) Config() (*Config, error) {
 	config.APIServers = fmt.Sprintf("http://%s:8080", c.ControllerIP)
 	config.SecureAPIServers = fmt.Sprintf("https://%s:443", c.ControllerIP)
 	config.APIServerEndpoint = fmt.Sprintf("https://%s", c.ExternalDNSName)
+	if config.UseCalico {
+		config.K8sNetworkPlugin = "cni"
+		config.CalicoEnable = "true"
+		// Use a Hyperkube with CNI binaries
+		config.K8sVer = config.K8sVer + "-cni"
+	}else{
+		config.CalicoEnable = "false"
+		// zero values for other config is fine.
+	}
+
 
 	var err error
 	if config.AMI, err = getAMI(config.Region, config.ReleaseChannel); err != nil {
@@ -322,13 +333,16 @@ type Config struct {
 	AMI               string
 
 	// Encoded TLS assets
-	TLSConfig *CompactTLSAssets
+	TLSConfig         *CompactTLSAssets
 
 	//Logical names of dynamic resources
-	VPCLogicalName string
+	VPCLogicalName    string
 
 	//Reference strings for dynamic resources
-	VPCRef string
+	VPCRef            string
+
+	CalicoEnable      string
+	K8sNetworkPlugin  string
 }
 
 func (cfg Cluster) valid() error {
@@ -539,7 +553,7 @@ func isSubdomain(sub, parent string) bool {
 		return false
 	}
 
-	subSuffixes := subParts[len(subParts)-len(parentParts):]
+	subSuffixes := subParts[len(subParts) - len(parentParts):]
 
 	if len(subSuffixes) != len(parentParts) {
 		return false

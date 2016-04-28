@@ -81,11 +81,12 @@ kmsKeyArn: "{{.KMSKeyARN}}"
 
 # Version of hyperkube image to use. This is the tag for the hyperkube image repository.
 # kubernetesVersion: v1.2.2_coreos.0
-# kubernetesVersion: v1.2.3_coreos.0-cni
 
 # Hyperkube image repository to use.
 # hyperkubeImageRepo: quay.io/coreos/hyperkube
-# hyperkubeImageRepo: quay.io/calico/hyperkube
+
+# Use Calico for network policy
+# useCalico: false
 
 # AWS Tags for cloudformation stack resources 
 #stackTags:
