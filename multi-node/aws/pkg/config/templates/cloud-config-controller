@@ -345,14 +345,11 @@ write_files:
                 value: "true"
           # Leader election container used by the policy agent.
           - name: leader-elector
-            image: gcr.io/google_containers/leader-elector:0.4
+            image: quay.io/calico/leader-elector:v0.1.0
             imagePullPolicy: IfNotPresent
             args:
               - "--election=calico-policy-election"
               - "--http=127.0.0.1:4040"
-            ports:
-              - containerPort: 4040
-                protocol: TCP
 
   - path: /srv/kubernetes/manifests/kube-system.json
     content: |
